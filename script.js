@@ -24,7 +24,7 @@ const IGNORED_FILES = new Set([
 // Extension categories to ignore
 const IGNORED_EXTENSIONS = new Set([
     // Images
-    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.ico', '.webp', '.tiff',
+    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.ico', '.webp', '.tiff', '.psd', '.ai', '.xcf',
     // Audio/Video
     '.mp3', '.wav', '.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv',
     // Executables/Binaries
@@ -34,7 +34,9 @@ const IGNORED_EXTENSIONS = new Set([
     // Models/Weights
     '.pth', '.onnx', '.h5', '.pb', '.pkl', '.safetensors', '.tflite', '.pt',
     // Documents/Fonts
-    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.ttf', '.otf', '.woff', '.woff2'
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.ttf', '.otf', '.woff', '.woff2',
+    // Source maps & Minified
+    '.map', '.min.js', '.min.css'
 ]);
 
 // State
@@ -200,11 +202,14 @@ function processFiles(rawFiles) {
         // We include them but maybe uncheck them by default if large? 
         // For now, let's include them and let user decide.
         
+        // Uncheck files larger than 1MB by default to prevent accidental massive text files
+        const isOversized = file.size > 1024 * 1024; // 1 MB
+
         allFiles.push({
             file: file,
             path: path,
             size: file.size,
-            selected: true // Default to true
+            selected: !isOversized // Unchecked if oversized
         });
     }
 
@@ -250,6 +255,14 @@ function renderFileList() {
         sizeSpan.className = 'file-size';
         sizeSpan.textContent = formatSize(item.size);
 
+        // Visual cue for unselected default files
+        if (!item.selected) {
+            li.style.opacity = '0.6';
+        }
+        checkbox.addEventListener('change', (e) => {
+             li.style.opacity = e.target.checked ? '1' : '0.6';
+        });
+
         li.appendChild(label);
         li.appendChild(pathSpan);
         li.appendChild(sizeSpan);
@@ -277,7 +290,14 @@ function updateSelectAllState() {
 // Select All Toggle
 selectAllCheckbox.addEventListener('change', (e) => {
     const checked = e.target.checked;
-    allFiles.forEach(f => f.selected = checked);
+    allFiles.forEach(f => {
+        f.selected = checked;
+        // Also update opacity of list items visually
+        const listItems = fileListElement.querySelectorAll('.file-item');
+        if(listItems.length === allFiles.length) {
+            Array.from(listItems).forEach(li => li.style.opacity = checked ? '1' : '0.6');
+        }
+    });
     renderFileList(); // Re-render to update checkboxes
     updateStats();
 });
@@ -328,7 +348,7 @@ async function generateContent(files) {
             parts.push(`${item.path}-\n${content}\n`);
         } catch (err) {
             console.warn(`Could not read file ${item.path}`, err);
-            parts.push(`${item.path}-\n[Error reading file]\n`);
+            parts.push(`${item.path}-\n[Error reading file or binary content detected]\n`);
         }
     }
     
@@ -338,10 +358,19 @@ async function generateContent(files) {
 function readFileContent(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
+        reader.onload = (e) => {
+            const text = e.target.result;
+            // Check for null bytes (common indicator of binary files)
+            // We check the first 1024 characters for performance
+            const sample = text.substring(0, 1024);
+            if (sample.indexOf('\u0000') !== -1) {
+                resolve('[Binary or non-text file skipped - detected null bytes]');
+                return;
+            }
+            resolve(text);
+        };
         reader.onerror = (e) => reject(e);
-        // Try reading as text. 
-        // Binary files should be filtered out already, but if one slips through, this might look garbled.
+        // Read as text. Null bytes will be preserved in the JS string representation.
         reader.readAsText(file);
     });
 }
