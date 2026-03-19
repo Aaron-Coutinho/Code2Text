@@ -316,7 +316,7 @@ downloadBtn.addEventListener('click', async () => {
     const selectedFiles = allFiles.filter(f => f.selected);
     
     if (selectedFiles.length === 0) {
-        alert("Please select at least one file.");
+        showToast("Please select at least one file.", "warning");
         return;
     }
 
@@ -327,9 +327,10 @@ downloadBtn.addEventListener('click', async () => {
     try {
         const consolidatedContent = await generateContent(selectedFiles);
         downloadFile(consolidatedContent, 'project_context.txt');
+        showToast("Context file generated successfully!", "success");
     } catch (err) {
         console.error(err);
-        alert("Error generating file. See console for details.");
+        showToast("Error generating file. See console for details.", "error");
     } finally {
         downloadBtn.innerHTML = buttonOriginalText;
         downloadBtn.disabled = false;
@@ -403,5 +404,187 @@ function setLoading(isLoading) {
     } else {
         processingView.classList.add('hidden');
         // resultView is shown by logic
+    }
+}
+
+// --- Custom Toasts ---
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // Icon based on type
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '❌';
+    if (type === 'warning') icon = '⚠️';
+
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    container.appendChild(toast);
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        toast.addEventListener('animationend', () => {
+            toast.remove();
+        });
+    }, 3000);
+}
+
+// --- Easter Egg: Context Snake ---
+const easterEggBtn = document.getElementById('easter-egg-btn');
+const gameModal = document.getElementById('game-modal');
+const closeGameBtn = document.getElementById('close-game-btn');
+const startGameBtn = document.getElementById('start-game-btn');
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const scoreDisplay = document.getElementById('game-score-display');
+const finalScoreSpan = document.getElementById('final-score');
+const gameOverlay = document.getElementById('game-overlay');
+
+let snake = [];
+let food = {};
+let dx = 20;
+let dy = 0;
+let score = 0;
+let gameInterval;
+let gameRunning = false;
+
+easterEggBtn.addEventListener('click', () => {
+    gameModal.classList.remove('hidden');
+});
+
+closeGameBtn.addEventListener('click', () => {
+    gameModal.classList.add('hidden');
+    stopGame();
+});
+
+startGameBtn.addEventListener('click', startGame);
+
+function initGame() {
+    snake = [
+        {x: 200, y: 200},
+        {x: 180, y: 200},
+        {x: 160, y: 200}
+    ];
+    score = 0;
+    dx = 20;
+    dy = 0;
+    createFood();
+}
+
+function startGame() {
+    initGame();
+    gameRunning = true;
+    gameOverlay.classList.add('hidden');
+    scoreDisplay.classList.add('hidden');
+    if (gameInterval) clearInterval(gameInterval);
+    gameInterval = setInterval(main, 100);
+}
+
+function stopGame() {
+    gameRunning = false;
+    clearInterval(gameInterval);
+    gameOverlay.classList.remove('hidden');
+    startGameBtn.textContent = "Play Again";
+    scoreDisplay.classList.remove('hidden');
+    finalScoreSpan.textContent = score;
+}
+
+function main() {
+    if (hasGameEnded()) {
+        stopGame();
+        return;
+    }
+    clearCanvas();
+    drawFood();
+    advanceSnake();
+    drawSnake();
+}
+
+function clearCanvas() {
+    ctx.fillStyle = "#0f172a";
+    ctx.strokeStyle = "#1e293b";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawSnakePart(snakePart) {
+    ctx.fillStyle = '#38bdf8';
+    ctx.strokeStyle = '#0ea5e9';
+    ctx.fillRect(snakePart.x, snakePart.y, 20, 20);
+    ctx.strokeRect(snakePart.x, snakePart.y, 20, 20);
+}
+
+function drawSnake() {
+    snake.forEach(drawSnakePart);
+}
+
+function advanceSnake() {
+    const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+    snake.unshift(head);
+    const didEatFood = snake[0].x === food.x && snake[0].y === food.y;
+    if (didEatFood) {
+        score += 10;
+        createFood();
+    } else {
+        snake.pop();
+    }
+}
+
+function randomTen(min, max) {
+    return Math.round((Math.random() * (max-min) + min) / 20) * 20;
+}
+
+function createFood() {
+    food.x = randomTen(0, canvas.width - 20);
+    food.y = randomTen(0, canvas.height - 20);
+    snake.forEach(function isFoodOnSnake(part) {
+        if (part.x == food.x && part.y == food.y) createFood();
+    });
+}
+
+function drawFood() {
+    ctx.fillStyle = '#ec4899';
+    ctx.strokeStyle = '#be185d';
+    ctx.fillRect(food.x, food.y, 20, 20);
+    ctx.strokeRect(food.x, food.y, 20, 20);
+}
+
+function hasGameEnded() {
+    for (let i = 4; i < snake.length; i++) {
+        if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+    }
+    const hitLeftWall = snake[0].x < 0;
+    const hitRightWall = snake[0].x >= canvas.width;
+    const hitToptWall = snake[0].y < 0;
+    const hitBottomWall = snake[0].y >= canvas.height;
+    return hitLeftWall || hitRightWall || hitToptWall || hitBottomWall;
+}
+
+document.addEventListener("keydown", changeDirection);
+
+function changeDirection(event) {
+    const LEFT_KEY = 37;
+    const RIGHT_KEY = 39;
+    const UP_KEY = 38;
+    const DOWN_KEY = 40;
+
+    if (!gameRunning) return;
+
+    const keyPressed = event.keyCode;
+    const goingUp = dy === -20;
+    const goingDown = dy === 20;
+    const goingRight = dx === 20;
+    const goingLeft = dx === -20;
+
+    if (keyPressed === LEFT_KEY && !goingRight) { dx = -20; dy = 0; }
+    if (keyPressed === UP_KEY && !goingDown) { dx = 0; dy = -20; }
+    if (keyPressed === RIGHT_KEY && !goingLeft) { dx = 20; dy = 0; }
+    if (keyPressed === DOWN_KEY && !goingUp) { dx = 0; dy = 20; }
+    
+    // Prevent default scrolling for arrow keys while playing
+    if([37, 38, 39, 40].indexOf(event.keyCode) > -1) {
+        event.preventDefault();
     }
 }

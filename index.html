@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Context Consolidator</title>
+    <!-- Emoji Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -17,7 +19,12 @@
     <div class="container">
         <header>
             <h1>Context Consolidator</h1>
-            <p>Turn your project into a single AI-ready text file.</p>
+            <p class="hero-subtitle">Bundle your entire codebase into a single text document to easily share context with Large Language Models (ChatGPT, Claude, etc).</p>
+            <div class="steps-container">
+                <span class="step-pill">1. Drop Folder</span>
+                <span class="step-pill">2. Review</span>
+                <span class="step-pill">3. Download</span>
+            </div>
         </header>
 
         <main>
@@ -71,8 +78,33 @@
 
         <footer>
             <p>100% Client-side. No files are uploaded.</p>
+            <div class="footer-extras">
+                <button id="easter-egg-btn" title="Bored? 🎮" class="ghost-btn">🎮</button>
+            </div>
         </footer>
     </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+
+    <!-- Snake Game Modal -->
+    <div id="game-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Context Snake</h2>
+                <button id="close-game-btn" class="close-btn">&times;</button>
+            </div>
+            <div class="game-container">
+                <canvas id="game-canvas" width="400" height="400"></canvas>
+                <div id="game-overlay" class="game-overlay">
+                    <button id="start-game-btn" class="btn primary-btn">Start Game</button>
+                    <p id="game-score-display" class="hidden">Score: <span id="final-score">0</span></p>
+                </div>
+            </div>
+            <p class="game-instructions">Use Arrow Keys to move.</p>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
