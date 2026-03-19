@@ -1,10 +1,10 @@
 # Project Context Consolidator
 
+Click [Here](https://code2text-jade.vercel.app/) to test the app.
+
 A sleek, 100% client-side web application designed to help developers quickly bundle their entire project codebase into a single, AI-ready text file. 
 
 When working with Large Language Models (LLMs) like ChatGPT, Claude, or Gemini, providing context is often the biggest hurdle. Manually copying and pasting multiple files is tedious and error-prone. This tool solves that by allowing you to drag and drop your project folder and instantly generate a formatted text file containing all your code, complete with file paths.
-
-![Context Consolidator UI](https://via.placeholder.com/800x450.png?text=Premium+Glassmorphism+UI)
 
 ## 🚀 Features
 
