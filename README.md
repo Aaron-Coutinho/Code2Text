@@ -42,7 +42,3 @@ Switching between different AI models or starting a new session often means losi
 ## 🤝 Contributing
 
 Feel free to fork this project, submit pull requests, or open issues if you find bugs or have feature requests (like supporting `.gitignore` parsing or custom exclusion rules!).
-
-## 📄 License
-
-This project is open-source and available under the MIT License.
