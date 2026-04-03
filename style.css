@@ -139,6 +139,35 @@ header h1 {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
+/* Settings Panel */
+.settings-panel {
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.settings-panel label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.settings-panel input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.settings-panel input:focus {
+    border-color: var(--accent-primary);
+}
+
 /* Drop Zone */
 .drop-zone {
     border: 2px dashed var(--border-color);
@@ -273,63 +302,44 @@ header h1 {
     text-align: right;
 }
 
-/* Checkboxes */
-.checkbox-container {
-    display: flex;
-    align-items: center;
-    position: relative;
-    padding-left: 28px;
+/* Modern Selects */
+.modern-select {
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    outline: none;
     cursor: pointer;
-    font-size: 0.9rem;
-    user-select: none;
+    appearance: none;
+    -webkit-appearance: none;
+    margin-right: 10px;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%2394a3b8" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1.2rem;
+    padding-right: 2rem;
 }
 
-.checkbox-container input {
-    position: absolute;
-    opacity: 0;
-    cursor: pointer;
-    height: 0;
-    width: 0;
+.modern-select:focus {
+    border-color: var(--accent-primary);
 }
 
-.checkmark {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    transform: translateY(-50%);
-    height: 18px;
-    width: 18px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    transition: all 0.2s;
+.item-select {
+    min-width: 120px;
 }
 
-.checkbox-container:hover input~.checkmark {
-    background-color: rgba(255, 255, 255, 0.2);
+.file-item.excluded {
+    opacity: 0.5;
 }
 
-.checkbox-container input:checked~.checkmark {
-    background-color: var(--accent-primary);
+.file-item.partial {
+    opacity: 0.8;
 }
 
-.checkmark:after {
-    content: "";
-    position: absolute;
-    display: none;
-}
-
-.checkbox-container input:checked~.checkmark:after {
-    display: block;
-}
-
-.checkbox-container .checkmark:after {
-    left: 6px;
-    top: 2px;
-    width: 4px;
-    height: 9px;
-    border: solid #0f172a;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
+.file-item.path {
+    opacity: 0.6;
 }
 
 

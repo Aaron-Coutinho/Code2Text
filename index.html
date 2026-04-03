@@ -28,6 +28,11 @@
         </header>
 
         <main>
+            <div class="settings-panel">
+                <label for="custom-ignore">Custom Exclude Folders (comma separated):</label>
+                <input type="text" id="custom-ignore-input" placeholder="e.g. data, images, large_logs">
+            </div>
+
             <div id="drop-zone" class="drop-zone">
                 <div class="icon-container">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -35,7 +40,7 @@
                     </svg>
                 </div>
                 <h3>Drag & Drop your Project Folder here</h3>
-                <p class="sub-text">or click to browse</p>
+                <p class="sub-text">or click to browse. Note: You can drop multiple folders!</p>
                 <input type="file" id="folder-input" webkitdirectory directory multiple>
             </div>
 
@@ -52,11 +57,12 @@
                 
                 <div class="file-list-container">
                     <div class="file-list-header">
-                        <label class="checkbox-container">
-                            <input type="checkbox" id="select-all" checked>
-                            <span class="checkmark"></span>
-                            Select All
-                        </label>
+                        <select id="master-select" class="dropdown-select modern-select">
+                            <option value="full">Apply to All: Full Content</option>
+                            <option value="partial">Apply to All: First 5 Lines</option>
+                            <option value="path">Apply to All: Path Only</option>
+                            <option value="exclude">Apply to All: Exclude</option>
+                        </select>
                         <span class="search-icon">🔍</span>
                     </div>
                     <ul id="file-list">
@@ -65,13 +71,14 @@
                 </div>
 
                 <div class="actions">
+                    <button id="add-more-btn" class="btn secondary-btn ghost">Add Another Folder</button>
                     <button id="download-btn" class="btn primary-btn">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="btn-icon">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                         </svg>
-                        Download Context File
+                        Download Context
                     </button>
-                    <button id="reset-btn" class="btn secondary-btn">Reset</button>
+                    <button id="reset-btn" class="btn secondary-btn" title="Clear all files">Reset</button>
                 </div>
             </div>
         </main>

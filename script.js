@@ -4,7 +4,9 @@ const resultView = document.getElementById('result-view');
 const fileListElement = document.getElementById('file-list');
 const downloadBtn = document.getElementById('download-btn');
 const resetBtn = document.getElementById('reset-btn');
-const selectAllCheckbox = document.getElementById('select-all');
+const addMoreBtn = document.getElementById('add-more-btn');
+const masterSelect = document.getElementById('master-select');
+const customIgnoreInput = document.getElementById('custom-ignore-input');
 const processingView = document.getElementById('processing-view');
 const fileCountParams = document.getElementById('file-count');
 const totalSizeParams = document.getElementById('total-size');
@@ -12,7 +14,7 @@ const totalSizeParams = document.getElementById('total-size');
 // Ignore Patterns
 const IGNORED_DIRS = new Set([
     'node_modules', '.git', '.vscode', '.idea', 'dist', 'build', 'bin', 'obj',
-    '__pycache__', 'venv', 'env', '.next', '.nuxt', 'out', 'target', 'vendor',
+    '__pycache__', 'venv', 'env', '.venv', '.next', '.nuxt', 'out', 'target', 'vendor',
     'coverage', '.mypy_cache', '.pytest_cache', 'tmp', 'temp'
 ]);
 
@@ -40,7 +42,7 @@ const IGNORED_EXTENSIONS = new Set([
 ]);
 
 // State
-let allFiles = []; // { path: string, file: File, selected: boolean, size: number }
+let allFiles = []; // { path: string, file: File, mode: string ('full', 'partial', 'path', 'exclude'), size: number }
 
 // --- Event Listeners ---
 
@@ -67,12 +69,24 @@ dropZone.addEventListener('drop', (e) => {
     }
 });
 
+// Add More Button
+addMoreBtn.addEventListener('click', () => {
+    folderInput.click();
+});
+
 // File Input
 folderInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
         handleFiles(Array.from(e.target.files));
     }
 });
+
+function getCustomIgnores() {
+    const val = customIgnoreInput ? customIgnoreInput.value : '';
+    if (!val.trim()) return new Set();
+    const parts = val.split(',').map(s => s.trim()).filter(Boolean);
+    return new Set(parts);
+}
 
 function handleItems(items) {
     // This is a bit more complex for full folder tree support via DnD API
@@ -151,7 +165,8 @@ async function scanDir(dirEntry) {
              files.push(file);
         } else if (entry.isDirectory) {
             // Check ignore dirs early?
-            if (IGNORED_DIRS.has(entry.name)) continue;
+            const customIgnores = getCustomIgnores();
+            if (IGNORED_DIRS.has(entry.name) || customIgnores.has(entry.name)) continue;
             
             const subFiles = await scanDir(entry);
             files = files.concat(subFiles);
@@ -168,7 +183,8 @@ function getFileFromEntry(fileEntry) {
 
 
 function processFiles(rawFiles) {
-    allFiles = [];
+    // We explicitly do NOT clear allFiles = []; here to make it additive.
+    const customIgnores = getCustomIgnores();
     
     for (const file of rawFiles) {
         // Determine path
@@ -184,7 +200,7 @@ function processFiles(rawFiles) {
         // 1. Check Directory Ignores
         // If any part of the path matches an ignored directory
         // Example: my-project/node_modules/library/index.js
-        const hasIgnoredDir = pathParts.some(part => IGNORED_DIRS.has(part));
+        const hasIgnoredDir = pathParts.some(part => IGNORED_DIRS.has(part) || customIgnores.has(part));
         if (hasIgnoredDir) continue;
 
         // 2. Check File Ignores
@@ -198,6 +214,9 @@ function processFiles(rawFiles) {
             if (IGNORED_EXTENSIONS.has(ext)) continue;
         }
 
+        // 4. Duplicate Check (Additive Drop Support)
+        if (allFiles.some(f => f.path === path)) continue;
+
         // Special handling: CSV files
         // We include them but maybe uncheck them by default if large? 
         // For now, let's include them and let user decide.
@@ -209,7 +228,7 @@ function processFiles(rawFiles) {
             file: file,
             path: path,
             size: file.size,
-            selected: !isOversized // Unchecked if oversized
+            mode: isOversized ? 'exclude' : 'full' // Default mode based on size
         });
     }
 
@@ -226,25 +245,31 @@ function renderFileList() {
     
     allFiles.forEach((item, index) => {
         const li = document.createElement('li');
-        li.className = 'file-item';
+        li.className = `file-item ${item.mode}`;
         
-        const label = document.createElement('label');
-        label.className = 'checkbox-container';
+        const select = document.createElement('select');
+        select.className = 'modern-select item-select';
         
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = item.selected;
-        checkbox.addEventListener('change', (e) => {
-            item.selected = e.target.checked;
-            updateStats();
-            updateSelectAllState();
+        const options = [
+            { value: 'full', label: 'Full Content' },
+            { value: 'partial', label: 'First 5 Lines' },
+            { value: 'path', label: 'Path Only' },
+            { value: 'exclude', label: 'Exclude' }
+        ];
+        
+        options.forEach(opt => {
+            const el = document.createElement('option');
+            el.value = opt.value;
+            el.textContent = opt.label;
+            if (item.mode === opt.value) el.selected = true;
+            select.appendChild(el);
         });
         
-        const checkmark = document.createElement('span');
-        checkmark.className = 'checkmark';
-        
-        label.appendChild(checkbox);
-        label.appendChild(checkmark);
+        select.addEventListener('change', (e) => {
+            item.mode = e.target.value;
+            li.className = `file-item ${item.mode}`; // Update opacity styles
+            updateStats();
+        });
         
         const pathSpan = document.createElement('span');
         pathSpan.className = 'file-path';
@@ -255,15 +280,7 @@ function renderFileList() {
         sizeSpan.className = 'file-size';
         sizeSpan.textContent = formatSize(item.size);
 
-        // Visual cue for unselected default files
-        if (!item.selected) {
-            li.style.opacity = '0.6';
-        }
-        checkbox.addEventListener('change', (e) => {
-             li.style.opacity = e.target.checked ? '1' : '0.6';
-        });
-
-        li.appendChild(label);
+        li.appendChild(select);
         li.appendChild(pathSpan);
         li.appendChild(sizeSpan);
         
@@ -272,34 +289,30 @@ function renderFileList() {
 }
 
 function updateStats() {
-    const selectedCount = allFiles.filter(f => f.selected).length;
-    const totalSize = allFiles.filter(f => f.selected).reduce((acc, f) => acc + f.size, 0);
+    const includedFiles = allFiles.filter(f => f.mode !== 'exclude');
     
-    fileCountParams.textContent = `${selectedCount} files selected`;
-    totalSizeParams.textContent = formatSize(totalSize);
-}
-
-function updateSelectAllState() {
-    const allSelected = allFiles.every(f => f.selected);
-    const someSelected = allFiles.some(f => f.selected);
-    
-    selectAllCheckbox.checked = allSelected;
-    selectAllCheckbox.indeterminate = someSelected && !allSelected;
-}
-
-// Select All Toggle
-selectAllCheckbox.addEventListener('change', (e) => {
-    const checked = e.target.checked;
-    allFiles.forEach(f => {
-        f.selected = checked;
-        // Also update opacity of list items visually
-        const listItems = fileListElement.querySelectorAll('.file-item');
-        if(listItems.length === allFiles.length) {
-            Array.from(listItems).forEach(li => li.style.opacity = checked ? '1' : '0.6');
-        }
+    fileCountParams.textContent = `${includedFiles.length} files included`;
+    // For size, maybe only sum up 'full' and 'partial', ignoring 'path' because it's just the string size
+    let approximateBytes = 0;
+    includedFiles.forEach(f => {
+        if (f.mode === 'full') approximateBytes += f.size;
+        // For partial, we don't know exact size of 5 lines, let's just make a small guess or count as 0 to save complexity
+        else if (f.mode === 'partial') approximateBytes += Math.min(f.size, 500); 
     });
-    renderFileList(); // Re-render to update checkboxes
+    
+    totalSizeParams.textContent = `~ ${formatSize(approximateBytes)}`;
+}
+
+// Master Select Toggle
+masterSelect.addEventListener('change', (e) => {
+    const mode = e.target.value;
+    allFiles.forEach(f => {
+        f.mode = mode;
+    });
+    renderFileList(); // Re-render to update all dropdowns visually
     updateStats();
+    // Reset master select back to default label look to show it's an action rather than a state
+    e.target.selectedIndex = 0; 
 });
 
 // Reset
@@ -313,7 +326,7 @@ resetBtn.addEventListener('click', () => {
 
 // Download Logic
 downloadBtn.addEventListener('click', async () => {
-    const selectedFiles = allFiles.filter(f => f.selected);
+    const selectedFiles = allFiles.filter(f => f.mode !== 'exclude');
     
     if (selectedFiles.length === 0) {
         showToast("Please select at least one file.", "warning");
@@ -344,8 +357,23 @@ async function generateContent(files) {
     const parts = [];
     
     for (const item of files) {
+        if (item.mode === 'exclude') continue;
+
+        if (item.mode === 'path') {
+             parts.push(`${item.path}-\n[Content Excluded]\n`);
+             continue;
+        }
+
         try {
-            const content = await readFileContent(item.file);
+            let content = await readFileContent(item.file);
+            
+            if (item.mode === 'partial') {
+                const lines = content.split('\n');
+                if (lines.length > 5) {
+                    content = lines.slice(0, 5).join('\n') + '\n\n... [More content present - truncated for partial preview]';
+                }
+            }
+
             parts.push(`${item.path}-\n${content}\n`);
         } catch (err) {
             console.warn(`Could not read file ${item.path}`, err);
