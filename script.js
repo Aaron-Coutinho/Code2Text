@@ -109,22 +109,21 @@ function handleItems(items) {
     if (entries.length > 0) {
         setLoading(true);
         // Small timeout to render loader
-        setTimeout(() => {
-            scanEntries(entries).then(files => {
-                processFiles(files);
-                setLoading(false); 
-            });
+        setTimeout(async () => {
+            const files = await scanEntries(entries);
+            await processFiles(files);
+            setLoading(false); 
         }, 100);
     }
 }
 
 function handleFiles(fileList) {
     setLoading(true);
-    setTimeout(() => {
+    setTimeout(async () => {
         // fileList is a flat list from <input>
         // We just need to filter it.
         // It already contains relative paths in `webkitRelativePath` usually.
-        processFiles(fileList);
+        await processFiles(fileList);
         setLoading(false);
     }, 100);
 }
@@ -181,12 +180,112 @@ function getFileFromEntry(fileEntry) {
     });
 }
 
+function detectLargeDirsAndPrompt(rawFiles) {
+    return new Promise((resolve) => {
+        const threshold = 300;
+        const dirCounts = {};
+        for(const f of rawFiles) {
+            let path = f.webkitRelativePath || f.fullPath || f.name;
+            path = path.replace(/\\/g, '/');
+            const parts = path.split('/');
+            
+            // Skip root. Start from 1st level subdirectories.
+            if (parts.length > 2) {
+                let currentPath = parts[0];
+                for (let i = 1; i < parts.length - 1; i++) {
+                     currentPath += "/" + parts[i];
+                     dirCounts[currentPath] = (dirCounts[currentPath] || 0) + 1;
+                }
+            }
+        }
+        
+        let largeDirs = Object.entries(dirCounts)
+            .filter(([dir, count]) => count > threshold)
+            .map(([dir, count]) => ({ dir, count }));
+            
+        let topLargeDirs = [];
+        for (const ld of largeDirs) {
+             const hasLargeParent = largeDirs.some(p => ld.dir !== p.dir && ld.dir.startsWith(p.dir + '/'));
+             if (!hasLargeParent) topLargeDirs.push(ld);
+        }
+        
+        if (topLargeDirs.length === 0) {
+            resolve("keep");
+            return;
+        }
+        
+        // Show Modal
+        const modal = document.getElementById('large-folder-modal');
+        const listContainer = document.getElementById('culprit-list');
+        listContainer.innerHTML = '';
+        
+        topLargeDirs.sort((a,b) => b.count - a.count).forEach(ld => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span>📂 ${ld.dir}</span> <span style="color:#f59e0b">${ld.count} files</span>`;
+            listContainer.appendChild(li);
+        });
+        
+        modal.classList.remove('hidden');
+        
+        // Handlers
+        let btnExclude = document.getElementById('modal-btn-exclude');
+        let btnPath = document.getElementById('modal-btn-path');
+        let btnKeep = document.getElementById('modal-btn-keep');
+        
+        const finish = (action) => {
+             modal.classList.add('hidden');
+             // remove listeners to prevent memory leaks if called multiple times
+             btnExclude.replaceWith(btnExclude.cloneNode(true));
+             btnPath.replaceWith(btnPath.cloneNode(true));
+             btnKeep.replaceWith(btnKeep.cloneNode(true));
+             resolve({ action, dirs: topLargeDirs.map(d => d.dir) });
+        };
+        
+        // Setup new fresh buttons from DOM after clone
+        btnExclude = document.getElementById('modal-btn-exclude');
+        btnPath = document.getElementById('modal-btn-path');
+        btnKeep = document.getElementById('modal-btn-keep');
 
-function processFiles(rawFiles) {
+        btnExclude.addEventListener('click', () => finish("exclude"));
+        btnPath.addEventListener('click', () => finish("path"));
+        btnKeep.addEventListener('click', () => finish("keep"));
+    });
+}
+
+
+async function processFiles(rawFiles) {
     // We explicitly do NOT clear allFiles = []; here to make it additive.
     const customIgnores = getCustomIgnores();
     
-    for (const file of rawFiles) {
+    // Check for massive directories
+    const promptResult = await detectLargeDirsAndPrompt(rawFiles);
+    
+    let finalRawFiles = rawFiles;
+    let pathsToAdd = [];
+
+    if (promptResult !== "keep") {
+        const { action, dirs } = promptResult;
+        
+        finalRawFiles = rawFiles.filter(f => {
+             let path = f.webkitRelativePath || f.fullPath || f.name;
+             path = path.replace(/\\/g, '/');
+             return !dirs.some(d => path.startsWith(d + '/'));
+        });
+        
+        if (action === 'path') {
+             // For path only, manually inject an empty fake file representing the directory
+             dirs.forEach(d => {
+                 pathsToAdd.push({
+                     file: null, // No file object needed for path
+                     path: d + '/',
+                     size: 0,
+                     mode: 'path'
+                 });
+             });
+        }
+    }
+    
+    for (const file of finalRawFiles) {
         // Determine path
         // Priority: file.webkitRelativePath (from input), file.fullPath (from DnD logic we added), file.name
         let path = file.webkitRelativePath || file.fullPath || file.name;
@@ -231,6 +330,13 @@ function processFiles(rawFiles) {
             mode: isOversized ? 'exclude' : 'full' // Default mode based on size
         });
     }
+
+    // Append any artificial path-only records 
+    pathsToAdd.forEach(p => {
+        if (!allFiles.some(f => f.path === p.path)) {
+            allFiles.push(p);
+        }
+    });
 
     renderFileList();
     updateStats();

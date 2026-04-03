@@ -600,3 +600,59 @@ footer {
     font-size: 0.9rem;
     margin-top: 1rem;
 }
+
+/* Warning Modal Updates */
+.warning-modal {
+    max-width: 500px;
+    width: 90%;
+    border-top: 4px solid #f59e0b;
+}
+
+.culprit-list-container {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    text-align: left;
+    margin-bottom: 1rem;
+}
+
+.culprit-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.culprit-list-container::-webkit-scrollbar-thumb {
+    background: rgba(245, 158, 11, 0.4);
+    border-radius: 3px;
+}
+
+#culprit-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#culprit-list li {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    display: flex;
+    justify-content: space-between;
+}
+
+#culprit-list li:last-child {
+    border-bottom: none;
+}
+
+.modal-actions {
+    flex-wrap: wrap;
+}
+
+.modal-actions .btn {
+    flex: 1;
+    min-width: 140px;
+    justify-content: center;
+}

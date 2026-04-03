@@ -112,6 +112,31 @@
         </div>
     </div>
 
+    <!-- Large Folder Warning Modal -->
+    <div id="large-folder-modal" class="modal hidden">
+        <div class="modal-content warning-modal">
+            <div class="modal-header">
+                <h2 style="color: #f59e0b;">⚠️ Large Folders Detected</h2>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                The following directories contain over <strong id="dynamic-threshold">300</strong> files. Rendering this many files may cause your browser to hang.
+            </p>
+            <div class="culprit-list-container">
+                <ul id="culprit-list">
+                    <!-- Dynamic list inserted here -->
+                </ul>
+            </div>
+            <p style="color: var(--text-secondary); margin-top: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem;">
+                How would you like to handle them safely?
+            </p>
+            <div class="actions modal-actions">
+                <button id="modal-btn-exclude" class="btn secondary-btn ghost">Exclude Thoroughly</button>
+                <button id="modal-btn-path" class="btn primary-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">Keep the Path Only</button>
+                <button id="modal-btn-keep" class="btn secondary-btn" style="opacity: 0.5;">Keep All (May Lag)</button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
