@@ -29,8 +29,14 @@
 
         <main>
             <div class="settings-panel">
-                <label for="custom-ignore">Custom Exclude Folders (comma separated):</label>
-                <input type="text" id="custom-ignore-input" placeholder="e.g. data, images, large_logs">
+                <div class="settings-group">
+                    <label for="custom-ignore-input">Custom Exclude Patterns (completely skip):</label>
+                    <input type="text" id="custom-ignore-input" placeholder="e.g. data, *.log, secret.key, temp">
+                </div>
+                <div class="settings-group">
+                    <label for="custom-path-input">Keep Path Only Patterns (no content):</label>
+                    <input type="text" id="custom-path-input" placeholder="e.g. .env, config/keys, *.pem, credentials">
+                </div>
             </div>
 
             <div id="drop-zone" class="drop-zone">

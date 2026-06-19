@@ -81,12 +81,56 @@ folderInput.addEventListener('change', (e) => {
     }
 });
 
+function pathMatchesPattern(path, pattern) {
+    pattern = pattern.trim().replace(/\\/g, '/');
+    if (!pattern) return false;
+    
+    // Normalize path
+    path = path.replace(/\\/g, '/');
+    
+    // Check if pattern contains wildcard
+    if (pattern.includes('*')) {
+        const regexStr = '^' + pattern
+            .replace(/[-\/\\^$+.()|[\]{}]/g, '\\$&') // escape regex characters
+            .replace(/\\\*/g, '.*')                 // convert \* back to .*
+            + '$';
+        const regex = new RegExp(regexStr, 'i');
+        
+        // Match filename
+        const segments = path.split('/');
+        const filename = segments[segments.length - 1];
+        if (regex.test(filename) || regex.test(path)) return true;
+        
+        // Check if any segment matches
+        return segments.some(seg => regex.test(seg));
+    }
+    
+    const lowerPath = path.toLowerCase();
+    const lowerPattern = pattern.toLowerCase();
+    const segments = lowerPath.split('/');
+    
+    // Check if any segment matches the pattern exactly (e.g. folder name)
+    if (segments.includes(lowerPattern)) return true;
+    
+    // Check if it's a simple substring match
+    if (lowerPath.includes(lowerPattern)) return true;
+    
+    return false;
+}
+
 function getCustomIgnores() {
     const val = customIgnoreInput ? customIgnoreInput.value : '';
-    if (!val.trim()) return new Set();
-    const parts = val.split(',').map(s => s.trim()).filter(Boolean);
-    return new Set(parts);
+    if (!val.trim()) return [];
+    return val.split(',').map(s => s.trim()).filter(Boolean);
 }
+
+function getCustomPaths() {
+    const input = document.getElementById('custom-path-input');
+    const val = input ? input.value : '';
+    if (!val.trim()) return [];
+    return val.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 
 function handleItems(items) {
     // This is a bit more complex for full folder tree support via DnD API
@@ -163,9 +207,10 @@ async function scanDir(dirEntry) {
              file.fullPath = entry.fullPath.substring(1);
              files.push(file);
         } else if (entry.isDirectory) {
-            // Check ignore dirs early?
+            // Check ignore dirs early
             const customIgnores = getCustomIgnores();
-            if (IGNORED_DIRS.has(entry.name) || customIgnores.has(entry.name)) continue;
+            const relPath = entry.fullPath.startsWith('/') ? entry.fullPath.substring(1) : entry.fullPath;
+            if (IGNORED_DIRS.has(entry.name) || customIgnores.some(pat => pathMatchesPattern(relPath, pat))) continue;
             
             const subFiles = await scanDir(entry);
             files = files.concat(subFiles);
@@ -184,30 +229,67 @@ function detectLargeDirsAndPrompt(rawFiles) {
     return new Promise((resolve) => {
         const threshold = 300;
         const dirCounts = {};
-        for(const f of rawFiles) {
+        for (const f of rawFiles) {
             let path = f.webkitRelativePath || f.fullPath || f.name;
             path = path.replace(/\\/g, '/');
             const parts = path.split('/');
             
-            // Skip root. Start from 1st level subdirectories.
-            if (parts.length > 2) {
-                let currentPath = parts[0];
-                for (let i = 1; i < parts.length - 1; i++) {
-                     currentPath += "/" + parts[i];
-                     dirCounts[currentPath] = (dirCounts[currentPath] || 0) + 1;
-                }
+            // Accumulate counts for all subdirectories (excluding the file itself)
+            let current = '';
+            for (let i = 0; i < parts.length - 1; i++) {
+                current = current ? (current + '/' + parts[i]) : parts[i];
+                dirCounts[current] = (dirCounts[current] || 0) + 1;
             }
         }
         
-        let largeDirs = Object.entries(dirCounts)
-            .filter(([dir, count]) => count > threshold)
-            .map(([dir, count]) => ({ dir, count }));
+        const allDirs = Object.keys(dirCounts);
+        // Find roots (directories at the highest level of the dropped structures)
+        const roots = allDirs.filter(d => !d.includes('/'));
+        
+        // Recursive culprit finder
+        function findCulprits(dir) {
+            const baseName = dir.split('/').pop();
+            const customIgnores = getCustomIgnores();
             
-        let topLargeDirs = [];
-        for (const ld of largeDirs) {
-             const hasLargeParent = largeDirs.some(p => ld.dir !== p.dir && ld.dir.startsWith(p.dir + '/'));
-             if (!hasLargeParent) topLargeDirs.push(ld);
+            if (IGNORED_DIRS.has(baseName) || customIgnores.some(pat => pathMatchesPattern(baseName, pat))) {
+                return [dir];
+            }
+            
+            const subs = allDirs.filter(d => {
+                if (!d.startsWith(dir + '/')) return false;
+                const subPath = d.substring(dir.length + 1);
+                return subPath && !subPath.includes('/');
+            });
+            
+            const largeSubs = subs.filter(sub => (dirCounts[sub] || 0) > threshold);
+            
+            if (largeSubs.length === 0) {
+                return (dirCounts[dir] || 0) > threshold ? [dir] : [];
+            }
+            
+            const sumLargeSubs = largeSubs.reduce((sum, sub) => sum + (dirCounts[sub] || 0), 0);
+            const remaining = (dirCounts[dir] || 0) - sumLargeSubs;
+            
+            if (remaining < threshold) {
+                let results = [];
+                for (const sub of largeSubs) {
+                    results = results.concat(findCulprits(sub));
+                }
+                return results;
+            } else {
+                return [dir];
+            }
         }
+        
+        let culprits = [];
+        for (const root of roots) {
+            culprits = culprits.concat(findCulprits(root));
+        }
+        
+        // Remove duplicates
+        culprits = Array.from(new Set(culprits));
+        
+        let topLargeDirs = culprits.map(dir => ({ dir, count: dirCounts[dir] }));
         
         if (topLargeDirs.length === 0) {
             resolve("keep");
@@ -251,11 +333,10 @@ function detectLargeDirsAndPrompt(rawFiles) {
         btnKeep.addEventListener('click', () => finish("keep"));
     });
 }
-
-
 async function processFiles(rawFiles) {
     // We explicitly do NOT clear allFiles = []; here to make it additive.
     const customIgnores = getCustomIgnores();
+    const customPaths = getCustomPaths();
     
     // Check for massive directories
     const promptResult = await detectLargeDirsAndPrompt(rawFiles);
@@ -269,25 +350,24 @@ async function processFiles(rawFiles) {
         finalRawFiles = rawFiles.filter(f => {
              let path = f.webkitRelativePath || f.fullPath || f.name;
              path = path.replace(/\\/g, '/');
-             return !dirs.some(d => path.startsWith(d + '/'));
+             return !dirs.some(d => path === d || path.startsWith(d + '/'));
         });
         
         if (action === 'path') {
              // For path only, manually inject an empty fake file representing the directory
              dirs.forEach(d => {
-                 pathsToAdd.push({
-                     file: null, // No file object needed for path
-                     path: d + '/',
-                     size: 0,
-                     mode: 'path'
-                 });
+                  pathsToAdd.push({
+                      file: null, // No file object needed for path
+                      path: d + '/',
+                      size: 0,
+                      mode: 'path'
+                  });
              });
         }
     }
     
     for (const file of finalRawFiles) {
         // Determine path
-        // Priority: file.webkitRelativePath (from input), file.fullPath (from DnD logic we added), file.name
         let path = file.webkitRelativePath || file.fullPath || file.name;
         
         // Normalize path separator
@@ -297,37 +377,39 @@ async function processFiles(rawFiles) {
         const fileName = pathParts[pathParts.length - 1];
         
         // 1. Check Directory Ignores
-        // If any part of the path matches an ignored directory
-        // Example: my-project/node_modules/library/index.js
-        const hasIgnoredDir = pathParts.some(part => IGNORED_DIRS.has(part) || customIgnores.has(part));
+        const hasIgnoredDir = pathParts.some(part => IGNORED_DIRS.has(part)) || customIgnores.some(pat => pathMatchesPattern(path, pat));
         if (hasIgnoredDir) continue;
 
         // 2. Check File Ignores
         if (IGNORED_FILES.has(fileName)) continue;
 
         // 3. Check Extension Ignores
-        // Get extension including dot, lowercase
         const lastDotIndex = fileName.lastIndexOf('.');
+        let ext = '';
         if (lastDotIndex !== -1) {
-            const ext = fileName.substring(lastDotIndex).toLowerCase();
+            ext = fileName.substring(lastDotIndex).toLowerCase();
             if (IGNORED_EXTENSIONS.has(ext)) continue;
         }
 
         // 4. Duplicate Check (Additive Drop Support)
         if (allFiles.some(f => f.path === path)) continue;
 
-        // Special handling: CSV files
-        // We include them but maybe uncheck them by default if large? 
-        // For now, let's include them and let user decide.
+        // Determine default mode
+        const isCustomPath = customPaths.some(pat => pathMatchesPattern(path, pat));
+        const isBinaryExt = ['.pk', '.kerat', '.keras', '.model', '.bin', '.pth', '.onnx', '.h5', '.pb', '.pkl', '.safetensors', '.tflite', '.pt', '.joblib', '.npy', '.npz'].includes(ext);
         
-        // Uncheck files larger than 1MB by default to prevent accidental massive text files
-        const isOversized = file.size > 1024 * 1024; // 1 MB
+        let defaultMode = 'full';
+        if (isCustomPath || isBinaryExt) {
+            defaultMode = 'path';
+        } else if (file.size > 1024 * 1024) { // 1 MB
+            defaultMode = 'exclude';
+        }
 
         allFiles.push({
             file: file,
             path: path,
             size: file.size,
-            mode: isOversized ? 'exclude' : 'full' // Default mode based on size
+            mode: defaultMode
         });
     }
 
@@ -492,21 +574,53 @@ async function generateContent(files) {
 
 function readFileContent(file) {
     return new Promise((resolve, reject) => {
+        if (!file) {
+            resolve('[Content Excluded]');
+            return;
+        }
+
+        const fileName = file.name;
+        const lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex !== -1) {
+            const ext = fileName.substring(lastDotIndex).toLowerCase();
+            const binaryExtensions = new Set([
+                '.pk', '.kerat', '.keras', '.model', '.bin', '.pth', '.onnx', '.h5', 
+                '.pb', '.pkl', '.safetensors', '.tflite', '.pt', '.joblib', '.npy', '.npz',
+                '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.ico', '.webp', '.tiff', '.psd',
+                '.mp3', '.wav', '.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv',
+                '.exe', '.dll', '.so', '.dylib', '.app', '.zip', '.tar', '.gz', '.rar', '.7z', '.jar', '.war',
+                '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.ttf', '.otf', '.woff', '.woff2'
+            ]);
+            if (binaryExtensions.has(ext)) {
+                resolve('[Binary File Content Skipped - Path Only]');
+                return;
+            }
+        }
+
+        // Slice first 8KB of the file to check for binary content (null bytes) safely
+        const sampleSize = Math.min(file.size, 8192);
+        if (sampleSize === 0) {
+            resolve('');
+            return;
+        }
+        
+        const slice = file.slice(0, sampleSize);
         const reader = new FileReader();
         reader.onload = (e) => {
             const text = e.target.result;
-            // Check for null bytes (common indicator of binary files)
-            // We check the first 1024 characters for performance
-            const sample = text.substring(0, 1024);
-            if (sample.indexOf('\u0000') !== -1) {
-                resolve('[Binary or non-text file skipped - detected null bytes]');
+            if (text.includes('\u0000')) {
+                resolve('[Binary File Content Skipped - Path Only]');
                 return;
             }
-            resolve(text);
+            
+            // Read full file since it passes the binary check
+            const fullReader = new FileReader();
+            fullReader.onload = (evt) => resolve(evt.target.result);
+            fullReader.onerror = (evt) => reject(evt);
+            fullReader.readAsText(file);
         };
         reader.onerror = (e) => reject(e);
-        // Read as text. Null bytes will be preserved in the JS string representation.
-        reader.readAsText(file);
+        reader.readAsText(slice);
     });
 }
 

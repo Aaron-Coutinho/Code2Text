@@ -141,15 +141,30 @@ header h1 {
 
 /* Settings Panel */
 .settings-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
     margin-bottom: 1.5rem;
     text-align: left;
 }
 
+@media (max-width: 600px) {
+    .settings-panel {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
+.settings-group {
+    display: flex;
+    flex-direction: column;
+}
+
 .settings-panel label {
-    display: block;
     margin-bottom: 0.5rem;
     font-size: 0.85rem;
     color: var(--text-secondary);
+    font-weight: 500;
 }
 
 .settings-panel input {
@@ -161,11 +176,13 @@ header h1 {
     color: var(--text-primary);
     font-family: 'Inter', sans-serif;
     outline: none;
-    transition: border-color 0.3s;
+    transition: all 0.3s ease;
 }
 
 .settings-panel input:focus {
     border-color: var(--accent-primary);
+    background: rgba(15, 23, 42, 0.6);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 
 /* Drop Zone */
